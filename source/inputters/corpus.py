@@ -14,7 +14,7 @@ import os
 import random
 import numpy as np
 
-#TODO：载入知识的核心
+
 class KnowledgeCorpus(object):
     """ Corpus """
     def __init__(self,
@@ -42,14 +42,14 @@ class KnowledgeCorpus(object):
 
     def load_voc(self):
         """ load vocabulary """
-        idx = 0~
+        idx = 0
         self.vocab_dict = dict()
         with open(self.vocab_path, 'r') as fr: 
             for line in fr: 
                 line = line.strip()
                 self.vocab_dict[line] = idx
                 idx += 1
-    #读取stream record file，返回train_raw =【{'src': src, 'tgt': tgt, 'cue':filter_knowledge}....】元素为字典的列表
+
     def read_data(self, data_file):
         """ read_data """
         data = []
@@ -60,11 +60,10 @@ class KnowledgeCorpus(object):
                 src, tgt, knowledge = line.rstrip('\n').split('\t')[:3]
                 filter_knowledge = []
                 for sent in knowledge.split('\1'):
-                    #sent为一条三元组
                     filter_knowledge.append(' '.join(sent.split()[: self.max_len]))
                 data.append({'src': src, 'tgt': tgt, 'cue':filter_knowledge})
         return data
-    #tokenize数字并根据词汇表把src\tgt\cue文本串（chatpath+knowledge+":"+history\ response\ KG cue）转为数字串
+
     def tokenize(self, tokens): 
         """ map tokens to ids """
         if isinstance(tokens, str): 
@@ -78,20 +77,14 @@ class KnowledgeCorpus(object):
         elif isinstance(tokens, list):
             tokens_list = [self.tokenize(t) for t in tokens]
             return tokens_list
-    #处理读取stream record file得到的train_raw =【{'src': src, 'tgt': tgt, 'cue':filter_knowledge}....】元素为字典的列表
-    #处理包含对读入的文本进行tokennize；根据max min len 进行过滤
-    #并根据词汇表把src\tgt\cue文本串（chatpath+knowledge+":"+history\ response\ KG cue）转为数字串
-    #返回的examples为一个列表，列表每一项为(example['src'], example['tgt'], example['cue'])元组
+
     def build_examples(self, data):
         """ build examples, data: ``List[Dict]`` """
         examples = []
         for raw_data in data:
-            #raw_data 为一个{'src': src, 'tgt': tgt, 'cue':filter_knowledge}字典
             example = {}
             for name, strings in raw_data.items():
-                #name 为标签（src\tgt\cue) ; strings 为汉字文本内容（chatpath+knowledge+":"+history\ response\ KG cue）
                 example[name] = self.tokenize(strings)
-            #验证src 和tgt的长度在min_len <= len(ids) <= max_len
             if not self.filter_pred(example): 
                 continue
             examples.append((example['src'], example['tgt'], example['cue']))
@@ -139,15 +132,8 @@ class KnowledgeCorpus(object):
     def data_generator(self, batch_size, phase, shuffle=False): 
         """ Generate data for train, dev or test. """
         if phase == 'train':
-            #读取stream record file
             train_file = os.path.join(self.data_dir, self.data_prefix + ".train")
-            #返回train_raw =【{'src': src, 'tgt': tgt, 'cue':filter_knowledge}....】元素为字典的列表
             train_raw = self.read_data(train_file)
-            #build_examples：
-            #处理读取stream record file得到的train_raw =【{'src': src, 'tgt': tgt, 'cue':filter_knowledge}....】元素为字典的列表
-            #处理包含对读入的文本进行tokennize；根据max min len 进行过滤
-            #并根据词汇表把src\tgt\cue文本串（chatpath+knowledge+":"+history\ response\ KG cue）转为数字串
-            #返回的examples为一个列表，列表每一项为(example['src'], example['tgt'], example['cue'])元组
             examples = self.build_examples(train_raw)
             self.num_examples['train'] = len(examples)
         elif phase == 'dev': 
@@ -169,8 +155,6 @@ class KnowledgeCorpus(object):
             if shuffle: 
                 random.shuffle(examples)
             for (index, example) in enumerate(examples): 
-                #example为元组(example['src'], example['tgt'], example['cue'])
-                #paddlepaddle规定reader读到的内容为可地带容器，且基本元素必须是元组
                 if phase == 'train': 
                     self.current_train_example = index + 1
                 instance = [example[0], example[1], example[2]]
@@ -192,27 +176,26 @@ class KnowledgeCorpus(object):
         def wrapper():
             """ wrapper """
             for batch in batch_reader(instance_reader, batch_size): 
-                #进行padding并返回padding后的串和每个串的原长
                 batch_data = self.prepare_batch_data(batch)
                 yield batch_data
 
         return wrapper
-    #进行padding并返回padding后的串和每个串的原长
+
     def prepare_batch_data(self, batch): 
         """ generate input tensor data """
-        #ids表示经过词汇表转化的数字串
         batch_source_ids = [inst[0] for inst in batch]
         batch_target_ids = [inst[1] for inst in batch]
         batch_knowledge_ids = [inst[2] for inst in batch]
-        #计算最大长度
+
         pad_source = max([self.cal_max_len(s_inst) for s_inst in batch_source_ids])
         pad_target = max([self.cal_max_len(t_inst) for t_inst in batch_target_ids])
         pad_kn = max([self.cal_max_len(k_inst) for k_inst in batch_knowledge_ids])
         pad_kn_num = max([len(k_inst) for k_inst in batch_knowledge_ids])
-        #pad
+
         source_pad_ids = [self.pad_data(s_inst, pad_source) for s_inst in batch_source_ids]
         target_pad_ids = [self.pad_data(t_inst, pad_target) for t_inst in batch_target_ids]
-        knowledge_pad_ids = [self.pad_data(k_inst, pad_kn, pad_kn_num) for k_inst in batch_knowledge_ids]
+        knowledge_pad_ids = [self.pad_data(k_inst, pad_kn, pad_kn_num)
+                                    for k_inst in batch_knowledge_ids]
 
         source_len = [len(inst) for inst in batch_source_ids]
         target_len = [len(inst) for inst in batch_target_ids]
